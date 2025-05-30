@@ -1,0 +1,6 @@
+{
+    "channel_name": "河北卫视",
+    "base_url": "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8",
+    "key_format": "hebtv{t}",  // 新添加的密钥格式
+    "update_interval": 3600
+}
