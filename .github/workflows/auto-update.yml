@@ -8,51 +8,51 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      # 步骤1：检出仓库（关键修复）
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # 必须添加
-          fetch-depth: 0  # 获取完整历史
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
           
-      # 步骤2：设置Python环境
-      - name: 设置Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'  # 指定明确版本
-          
-      # 步骤3：生成直播链接（简化版）
-      - name: 生成直播链接
+      - name: 生成并测试河北卫视链接
         run: |
-          # 获取当前时间戳
           TIMESTAMP=$(date +%s)
-          
-          # 生成河北卫视密钥
           KEY_Hebei=$(echo -n "hebtv$TIMESTAMP" | md5sum | awk '{print $1}')
+          URL="https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY_Hebei"
           
-          # 创建M3U文件
+          # 测试带请求头的链接
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" -H "Referer: https://www.hebtv.com/" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" "$URL")
+          
+          if [ "$STATUS" -eq 200 ]; then
+            echo "✅ 链接有效: $URL"
+            echo "$URL" > hebei_url.txt
+          else
+            echo "❌ 链接无效(状态码:$STATUS)，使用备用源"
+            echo "https://liveplay-hhht.cctv.cn/hd/250.m3u8" > hebei_url.txt
+          fi
+          
+      - name: 添加河南卫视
+        run: |
+          echo "http://hw-m-l.cztv.com/channels/lantian/channel010/1080p.m3u8" > henan_url.txt
+          
+      - name: 创建播放列表
+        run: |
+          URL_Hebei=$(cat hebei_url.txt)
+          URL_Henan=$(cat henan_url.txt)
+          
           echo "#EXTM3U" > live.m3u
           echo "#EXTINF:-1,河北卫视" >> live.m3u
-          echo "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY_Hebei" >> live.m3u
-          
-          # 添加河南卫视（静态源示例）
+          echo "$URL_Hebei" >> live.m3u
           echo "#EXTINF:-1,河南卫视" >> live.m3u
-          echo "http://hw-m-l.cztv.com/channels/lantian/channel010/1080p.m3u8" >> live.m3u
+          echo "$URL_Henan" >> live.m3u
           
-          # 显示结果
-          echo "✅ 直播列表已生成"
+          echo "播放列表内容："
           cat live.m3u
           
-      # 步骤4：提交更改（关键修复）
       - name: 提交更改
         run: |
-          # 配置Git用户
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
-          
-          # 添加并提交更改
           git add live.m3u
-          git commit -m "自动更新直播链接"
-          
-          # 强制推送（避免冲突）
-          git push --force
+          git commit -m "更新直播链接"
+          git push
