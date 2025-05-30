@@ -10,13 +10,16 @@ jobs:
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}  # 关键修复：添加权限令牌
+          fetch-depth: 0  # 获取所有历史记录
         
       - name: 生成直播链接
         run: |
           # 计算当前时间戳
           TIMESTAMP=$(date +%s)
           
-          # 生成密钥 (使用算法: MD5("hebtv" + 时间戳)
+          # 生成密钥
           KEY=$(echo -n "hebtv$TIMESTAMP" | md5sum | awk '{print $1}')
           
           # 创建直播源内容
@@ -24,14 +27,12 @@ jobs:
           echo "#EXTINF:-1,河北卫视" >> live.m3u
           echo "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY" >> live.m3u
           
-          # 显示结果
-          echo "生成的直播链接:"
-          echo "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY"
+          echo "✅ 直播链接已生成"
           
       - name: 提交更改
         run: |
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
           git add live.m3u
-          git commit -m "自动更新直播链接"
+          git commit -m "自动更新直播链接 [$(date +'%Y-%m-%d %H:%M:%S')]"
           git push
