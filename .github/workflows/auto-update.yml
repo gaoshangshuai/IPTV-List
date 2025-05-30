@@ -1,38 +1,73 @@
-name: 自动更新河北卫视直播源
+name: 河北卫视直播源自动更新
 on:
   schedule:
-    - cron: '0 * * * *'  # 每小时运行一次
-  workflow_dispatch:     # 允许手动触发
+    - cron: '*/10 * * * *'  # 每10分钟运行一次
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出仓库
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # 关键修复：添加权限令牌
-          fetch-depth: 0  # 获取所有历史记录
+    - name: 检出仓库
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
         
-      - name: 生成直播链接
-        run: |
-          # 计算当前时间戳
-          TIMESTAMP=$(date +%s)
-          
-          # 生成密钥
-          KEY=$(echo -n "hebtv$TIMESTAMP" | md5sum | awk '{print $1}')
-          
-          # 创建直播源内容
-          echo "#EXTM3U" > live.m3u
-          echo "#EXTINF:-1,河北卫视" >> live.m3u
-          echo "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY" >> live.m3u
-          
-          echo "✅ 直播链接已生成"
-          
-      - name: 提交更改
-        run: |
-          git config --global user.name 'GitHub Actions'
-          git config --global user.email 'actions@github.com'
-          git add live.m3u
-          git commit -m "自动更新直播链接 [$(date +'%Y-%m-%d %H:%M:%S')]"
-          git push
+    - name: 生成直播链接
+      run: |
+        # 获取当前时间戳
+        TIMESTAMP=$(date +%s)
+        
+        # 测试多种密钥算法
+        KEY1=$(echo -n "hebtv$TIMESTAMP" | md5sum | awk '{print $1}')
+        KEY2=$(echo -n "hebtv$TIMESTAMP" | openssl md5 -binary | xxd -p)
+        KEY3=$(echo -n "$TIMESTAMP" | md5sum | awk '{print $1}')
+        
+        # 创建测试链接
+        URL1="https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY1"
+        URL2="https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY2"
+        URL3="https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=$TIMESTAMP&k=$KEY3"
+        
+        # 测试链接有效性
+        test_url() {
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" -H "Referer: https://www.hebtv.com/" "$1")
+          if [ "$STATUS" -eq 200 ]; then
+            echo "$1" > valid_url.txt
+            return 0
+          fi
+          return 1
+        }
+        
+        # 按顺序测试
+        if test_url "$URL1"; then
+          echo "✅ 算法1有效"
+        elif test_url "$URL2"; then
+          echo "✅ 算法2有效"
+        elif test_url "$URL3"; then
+          echo "✅ 算法3有效"
+        else
+          # 使用最新有效链接作为后备
+          echo "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8?t=1748587888&k=612cb6d7fcd424352b4a9adaf1e783cd" > valid_url.txt
+          echo "⚠️ 使用后备链接"
+        fi
+        
+    - name: 创建播放列表
+      run: |
+        # 读取有效URL
+        URL=$(cat valid_url.txt)
+        
+        # 创建M3U文件
+        echo "#EXTM3U" > live.m3u
+        echo "#EXTINF:-1,河北卫视" >> live.m3u
+        echo "$URL" >> live.m3u
+        
+        echo "生成的链接: $URL"
+        
+    - name: 提交更改
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git add live.m3u
+        git commit -m "自动更新直播链接"
+        git push
