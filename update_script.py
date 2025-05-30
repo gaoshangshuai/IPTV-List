@@ -1,39 +1,41 @@
+import re
+import requests
 import time
-import hashlib
-import json
-import os
-from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
-# 加载配置
-with open('config.json', 'r') as f:
-    config = json.load(f)
-
-def generate_live_url():
-    """生成直播链接"""
+def get_hebei_tv_url():
+    """获取河北卫视直播源链接"""
+    base_url = "https://tv.pull.hebtv.com/jishi/weishipindao.m3u8"
+    # 生成时间戳和密钥（实际应用中可能需要从网页获取）
     timestamp = int(time.time())
-    
-    # 动态生成密钥
-    key_str = config["key_format"].format(t=timestamp)
-    dynamic_key = hashlib.md5(key_str.encode()).hexdigest()
-    
-    return f"{config['base_url']}?t={timestamp}&k={dynamic_key}"
+    # 这里使用固定密钥（根据您提供的示例）
+    key = "be4add580d3a62dbd555d3a09305c015"
+    return f"{base_url}?t={timestamp}&k={key}"
 
-def update_m3u_file():
-    """更新M3U文件"""
-    new_url = generate_live_url()
-    
-    # 创建M3U内容
-    m3u_content = f"#EXTM3U\n#EXTINF:-1,{config['channel_name']}\n{new_url}\n"
-    
-    # 写入文件
-    with open('live.m3u', 'w', encoding='utf-8') as f:
-        f.write(m3u_content)
-    
-    # 输出日志
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 直播链接已更新")
-    print(f"新链接: {new_url}")
-    
-    return new_url
+def extract_m3u8_from_page(url):
+    """从网页中提取m3u8链接"""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        
+        # 使用正则表达式查找m3u8链接
+        m3u8_pattern = r'(https?://[^\s]+?\.m3u8[^\s]*?)["\']'
+        matches = re.findall(m3u8_pattern, response.text)
+        
+        if matches:
+            # 返回找到的第一个m3u8链接
+            return matches[0]
+        return None
+    except Exception as e:
+        print(f"提取m3u8链接出错: {str(e)}")
+        return None
 
 if __name__ == "__main__":
-    update_m3u_file()
+    # 测试功能
+    hebei_url = get_hebei_tv_url()
+    print("河北卫视直播源:", hebei_url)
+    
+    # 示例：从其他网页提取m3u8
+    # example_url = "http://example.com/live-tv-page"
+    # extracted_url = extract_m3u8_from_page(example_url)
+    # print("提取的直播源:", extracted_url)
